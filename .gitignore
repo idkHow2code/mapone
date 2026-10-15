@@ -1,0 +1,12 @@
+Tech Assignment.pdf
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Dependencies & build output
+node_modules/
+dist/
+coverage/
+*.log

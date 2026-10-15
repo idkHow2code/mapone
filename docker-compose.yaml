@@ -1,0 +1,80 @@
+services:
+  database:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${DB_NAME:-event_registration}
+      MYSQL_USER: ${DB_USER:-app}
+      MYSQL_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set in .env}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:?DB_ROOT_PASSWORD must be set in .env}
+      TZ: ${TZ:-Asia/Singapore}
+    ports:
+      # Bound to localhost only, for running migrations/tests from the host
+      - "127.0.0.1:${DB_PORT:-3306}:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+
+  mySQLadmin:
+    image: phpmyadmin:5.2
+    restart: unless-stopped
+    depends_on:
+      database:
+        condition: service_healthy
+    environment:
+      PMA_HOST: database
+      PMA_PORT: 3306
+    ports:
+      # Dev tool only - bound to localhost
+      - "127.0.0.1:${PMA_PORT:-8080}:80"
+
+  backend:
+    build:
+      context: ./backend
+    restart: unless-stopped
+    depends_on:
+      database:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 8000
+      DB_HOST: database
+      DB_PORT: 3306
+      DB_NAME: ${DB_NAME:-event_registration}
+      DB_USER: ${DB_USER:-app}
+      DB_PASSWORD: ${DB_PASSWORD}
+      ONEMAP_EMAIL: ${ONEMAP_EMAIL:?ONEMAP_EMAIL must be set in .env}
+      ONEMAP_PASSWORD: ${ONEMAP_PASSWORD:?ONEMAP_PASSWORD must be set in .env}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:8001}
+      TZ: ${TZ:-Asia/Singapore}
+    ports:
+      - "8000:8000"
+
+  # Unit tests - not started by `docker compose up`.
+  # Run with: docker compose run --rm backend-test
+  backend-test:
+    build:
+      context: ./backend
+      target: test
+    profiles: ["test"]
+    volumes:
+      - ./backend/coverage:/app/coverage
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000}
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "8001:8001"
+
+volumes:
+  db_data:
