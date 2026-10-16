@@ -1,19 +1,24 @@
 import 'dotenv/config';
-import express from 'express';
-import cors from 'cors';
-import helmet from 'helmet';
+import { app } from './app';
+import { sequelize } from './config/database';
+import { runMigrations, runSeeders } from './db/migrator';
+import { logger } from './utils/logger';
 
 const PORT = Number(process.env.PORT ?? 8000);
 
-const app = express();
-app.use(helmet());
-app.use(cors({ origin: process.env.CORS_ORIGIN ?? 'http://localhost:8001' }));
-app.use(express.json());
+async function main(): Promise<void> {
+  await sequelize.authenticate();
+  logger.info('Database connection established');
 
-app.get('/health', (_req, res) => {
-  res.status(200).json({ status: 'ok' });
-});
+  await runMigrations();
+  await runSeeders();
 
-app.listen(PORT, () => {
-  console.log(`API listening on port ${PORT}`);
+  app.listen(PORT, () => {
+    logger.info(`API listening on port ${PORT}`);
+  });
+}
+
+main().catch((err: unknown) => {
+  logger.error('Failed to start API', err);
+  process.exit(1);
 });
