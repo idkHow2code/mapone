@@ -16,8 +16,12 @@ export const EMPLOYEES = [
 ];
 
 export const migrator = new Umzug<QueryInterface>({
-  // .ts when run with tsx/ts-jest, .js once compiled into dist/
-  migrations: { glob: ['migrations/*.{js,ts}', { cwd: __dirname, ignore: ['**/*.d.ts'] }] },
+  migrations: {
+    // .ts when run with tsx (dev), .js once compiled into dist/
+    glob: ['migrations/*.{js,ts}', { cwd: __dirname, ignore: ['**/*.d.ts'] }],
+    // Always record the .js name, so dev and production agree on which migrations have run
+    resolve: (params) => ({ ...Umzug.defaultResolver(params), name: params.name.replace(/\.ts$/, '.js') }),
+  },
   context: sequelize.getQueryInterface(),
   storage: new SequelizeStorage({ sequelize, tableName: 'sequelize_meta' }),
   logger: {
@@ -42,22 +46,26 @@ export async function runSeeders(): Promise<void> {
 }
 
 // CLI: node dist/db/migrator.js <migrate|migrate:undo|seed>
-if (require.main === module) {
+async function runCli(name: string): Promise<void> {
   const commands: Record<string, () => Promise<unknown>> = {
     migrate: runMigrations,
     'migrate:undo': () => migrator.down(),
     seed: runSeeders,
   };
-  const name = process.argv[2];
-  const command = commands[name];
+  try {
+    const command = commands[name];
+    if (!command) {
+      throw new Error(`Unknown command "${name}". Use one of: ${Object.keys(commands).join(', ')}`);
+    }
+    await command();
+  } catch (err) {
+    logger.error('Database command failed', err);
+    process.exitCode = 1;
+  } finally {
+    await sequelize.close();
+  }
+}
 
-  (command
-    ? command()
-    : Promise.reject(new Error(`Unknown command "${name}". Use one of: ${Object.keys(commands).join(', ')}`))
-  )
-    .catch((err: unknown) => {
-      logger.error('Database command failed', err);
-      process.exitCode = 1;
-    })
-    .finally(() => sequelize.close());
+if (require.main === module) {
+  void runCli(process.argv[2]);
 }

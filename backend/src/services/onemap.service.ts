@@ -80,9 +80,13 @@ export class OneMapClient {
       return this.token.value;
     }
     // Share one in-flight token request between concurrent callers
-    this.pendingToken ??= this.fetchToken().finally(() => {
-      this.pendingToken = undefined;
-    });
+    this.pendingToken ??= (async () => {
+      try {
+        return await this.fetchToken();
+      } finally {
+        this.pendingToken = undefined;
+      }
+    })();
     return this.pendingToken;
   }
 

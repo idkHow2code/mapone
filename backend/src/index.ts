@@ -7,18 +7,20 @@ import { logger } from './utils/logger';
 const PORT = Number(process.env.PORT ?? 8000);
 
 async function main(): Promise<void> {
-  await sequelize.authenticate();
-  logger.info('Database connection established');
+  try {
+    await sequelize.authenticate();
+    logger.info('Database connection established');
 
-  await runMigrations();
-  await runSeeders();
+    await runMigrations();
+    await runSeeders();
 
-  app.listen(PORT, () => {
-    logger.info(`API listening on port ${PORT}`);
-  });
+    app.listen(PORT, () => {
+      logger.info(`API listening on port ${PORT}`);
+    });
+  } catch (err) {
+    logger.error('Failed to start API', err);
+    process.exit(1);
+  }
 }
 
-main().catch((err: unknown) => {
-  logger.error('Failed to start API', err);
-  process.exit(1);
-});
+void main();
