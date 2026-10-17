@@ -33,15 +33,24 @@ services:
       # Dev tool only - bound to localhost
       - "127.0.0.1:${PMA_PORT:-8080}:80"
 
+  # Runs the dev server (tsx watch): code changes in ./backend/src apply without rebuilding.
+  # Rebuild (--build) only after changing package.json.
   backend:
     build:
       context: ./backend
+      target: dev
     restart: unless-stopped
     depends_on:
       database:
         condition: service_healthy
+    volumes:
+      - ./backend/src:/app/src
+      - ./backend/tsconfig.json:/app/tsconfig.json
     environment:
-      NODE_ENV: production
+      NODE_ENV: development
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      # File change events don't reach containers through Windows/macOS bind mounts: poll instead
+      CHOKIDAR_USEPOLLING: "true"
       PORT: 8000
       DB_HOST: database
       DB_PORT: 3306
@@ -63,16 +72,25 @@ services:
       target: test
     profiles: ["test"]
     volumes:
+      - ./backend/src:/app/src
       - ./backend/coverage:/app/coverage
 
+  # Runs the Vite dev server: code changes in ./frontend/src apply instantly (hot reload).
+  # Rebuild (--build) only after changing package.json.
   frontend:
     build:
       context: ./frontend
-      args:
-        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000}
+      target: dev
     restart: unless-stopped
     depends_on:
       - backend
+    volumes:
+      - ./frontend/src:/app/src
+      - ./frontend/index.html:/app/index.html
+      - ./frontend/vite.config.ts:/app/vite.config.ts
+    environment:
+      VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000}
+      VITE_USE_POLLING: "true"
     ports:
       - "8001:8001"
 

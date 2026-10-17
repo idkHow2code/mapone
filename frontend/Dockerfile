@@ -1,10 +1,18 @@
-# ---- Build stage: compile the React app ----
-FROM node:22-alpine AS build
+# ---- Dependencies (shared by dev and build) ----
+FROM node:22-alpine AS deps
 WORKDIR /app
 
 COPY package*.json ./
 RUN npm ci
 
+# ---- Dev stage: Vite dev server with hot reload (docker-compose.yaml mounts ./src) ----
+FROM deps AS dev
+COPY . .
+EXPOSE 8001
+CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
+
+# ---- Build stage: compile the React app ----
+FROM deps AS build
 COPY . .
 
 # Vite inlines VITE_* vars at build time

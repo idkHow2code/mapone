@@ -1,10 +1,18 @@
-# ---- Build stage: compile TypeScript ----
-FROM node:22-alpine AS build
+# ---- Dependencies (shared by dev, build and test) ----
+FROM node:22-alpine AS deps
 WORKDIR /app
 
 COPY package*.json ./
 RUN npm ci
 
+# ---- Dev stage: restarts on code changes (docker-compose.yaml mounts ./src) ----
+FROM deps AS dev
+COPY . .
+EXPOSE 8000
+CMD ["npm", "run", "dev"]
+
+# ---- Build stage: compile TypeScript ----
+FROM deps AS build
 COPY . .
 RUN npm run build
 
